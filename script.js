@@ -14,8 +14,12 @@ resizeCanvas();
 let boundaries = [];
 let lazers = [];
 
+// Colors for boundaries and rays
 let boundaryColor = 'rgb(255, 255, 255)';
 let lazerColor = 'rgb(255, 0, 0)';
+
+// Variable to store the selected ray
+let selectedLazer = -1;
 
 class Boundaries {
   constructor(x1, y1, x2, y2, color, alpha){
@@ -43,7 +47,7 @@ boundaries.push(new Boundaries(0, canvas.height, 0, 0, boundaryColor,1));
 boundaries.push(new Boundaries(canvas.width / 2, canvas.height / 4, canvas.width / 4, canvas.height / 2, boundaryColor, 1));  
 
 class Lazer {
-  constructor(x, y, angle, color, isReflection, originBoundary=null, maxReflections=10, brightness=1){
+  constructor(x, y, angle, color, isReflection, originBoundary=null, maxReflections=10, brightness=1, reflectedBy=null){
     this.pos = {x: x, y: y};
     this.dir = {x: Math.cos(angle), y: Math.sin(angle)};
     this.color = color;
@@ -52,18 +56,19 @@ class Lazer {
     this.originBoundary = originBoundary;
     this.maxReflections = maxReflections;
     this.brightness = brightness;
+    this.reflectedBy = reflectedBy;
   }
 
-  // Method to draw rays
+  // Method to draw circle at origin
   draw(){
-    ctx.beginPath();
-    ctx.moveTo(this.pos.x, this.pos.y);
-    ctx.lineTo(this.pos.x + this.dir.x * 5, this.pos.y + this.dir.y * 5);
     const r = this.color.split(',')[0].split('(')[1];
     const g = this.color.split(',')[1];
     const b = this.color.split(',')[2].split(')')[0];
     ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${this.brightness})`
-    ctx.stroke();
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${this.brightness})`
+    ctx.beginPath();
+    ctx.arc(this.pos.x, this.pos.y, 5, 0, 2 * Math.PI); // Change the radius as needed
+    ctx.fill();
 
     this.update(this.pos.x + this.dir.x * 10, this.pos.y + this.dir.y * 10);
   }
@@ -120,6 +125,9 @@ class Lazer {
 }
 
 lazers.push(new Lazer(100, 100, Math.PI / 6, lazerColor, false, 1));
+lazers.push(new Lazer(canvas.width - 100, 100, Math.PI / 3, 'rgb(0,255,0)', false, 1));
+lazers.push(new Lazer(100, canvas.height - 100, Math.PI / 6, 'rgb(0,0,255)', false, 1));
+lazers.push(new Lazer(canvas.width - 100, canvas.height - 100, Math.PI / 14, 'rgb(255,255,0)', false, 1));
 
 function castLazer(){
   for (let lazer of lazers){
@@ -163,7 +171,7 @@ function castLazer(){
           y: lazer.dir.y - 2 * dot * normal.y
         };
 
-        const newLazer = new Lazer(closest.x, closest.y, Math.atan2(reflection.y, reflection.x), lazer.color, true, closestBoundary, lazer.maxReflections - 1, Math.max(lazer.brightness - 0.07, 0.1).toFixed(1));
+        const newLazer = new Lazer(closest.x, closest.y, Math.atan2(reflection.y, reflection.x), lazer.color, true, closestBoundary, lazer.maxReflections - 1, Math.max(lazer.brightness - 0.07, 0.1).toFixed(1), lazer.reflectedBy || lazer);
         lazers.push(newLazer);
       }
 
@@ -179,20 +187,36 @@ function castLazer(){
   }
 }
 
-window.addEventListener('mousemove', (e) => {
-  // Iterate through lazers array
-  for (let i = lazers.length - 1; i >= 0; i--) {
-    if (lazers[i].isReflection) {
-      // Remove reflected lazers from array
-      lazers.splice(i, 1);
-    } else if (i === 0) {
-      // For the lazer being moved
-      lazers[i].update(e.clientX, e.clientY);
-      lazers[i].hasReflected = false; // Reset hasReflected
+window.addEventListener('click', (e) => {
+  let lazerClicked = false;
+  for(let i = 0; i < lazers.length; i++){
+    if(e.clientX > lazers[i].pos.x - 5 && e.clientX < lazers[i].pos.x + 5 && e.clientY > lazers[i].pos.y - 5 && e.clientY < lazers[i].pos.y + 5){
+      selectedLazer = i;
+      lazerClicked = true;
+      break; // Exit loop since a lazer is clicked
     }
+  }
+  
+  if (!lazerClicked) {
+    selectedLazer = -1; // Set selectedLazer to -1 if no lazer is clicked
   }
 });
 
+
+window.addEventListener('mousemove', (e) => {
+  resetRays(e);
+});
+
+function resetRays(e){
+  for (let i = lazers.length - 1; i >= 0; i--) {
+    if (lazers[i].isReflection && lazers[i].reflectedBy === lazers[selectedLazer]) {
+      lazers.splice(i, 1);
+    } else if (i === selectedLazer) {
+      lazers[i].update(e.clientX, e.clientY);
+      lazers[i].hasReflected = false;
+    }
+  }
+}
 
 // Function to continuously draw on canvas
 function draw() {
@@ -200,6 +224,12 @@ function draw() {
 
   for (let boundary of boundaries){
     boundary.draw();
+  }
+
+  for (let lazer of lazers){
+    if(!lazer.isReflection){
+      lazer.draw();
+    }
   }
 
   castLazer();
