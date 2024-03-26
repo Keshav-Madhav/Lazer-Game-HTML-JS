@@ -15,7 +15,7 @@ let boundaries = [];
 let lazers = [];
 
 let boundaryColor = 'rgb(255, 255, 255)';
-
+let lazerColor = 'rgb(255, 0, 0)';
 
 class Boundaries {
   constructor(x1, y1, x2, y2, color, alpha){
@@ -36,20 +36,22 @@ class Boundaries {
 }
 // Place boundaries around the canvas
 boundaries.push(new Boundaries(0, 0, canvas.width, 0, boundaryColor,1));
-boundaries.push(new Boundaries(canvas.width, 0, canvas.width, canvas.height, boundaryColor));
+boundaries.push(new Boundaries(canvas.width, 0, canvas.width, canvas.height, boundaryColor,1));
 boundaries.push(new Boundaries(canvas.width, canvas.height, 0, canvas.height, boundaryColor, 1));
-boundaries.push(new Boundaries(0, canvas.height, 0, 0, boundaryColor, 1));
+boundaries.push(new Boundaries(0, canvas.height, 0, 0, boundaryColor,1));
 
 boundaries.push(new Boundaries(canvas.width / 2, canvas.height / 4, canvas.width / 4, canvas.height / 2, boundaryColor, 1));  
 
 class Lazer {
-  constructor(x, y, angle, color, isReflection, originBoundary=null){
+  constructor(x, y, angle, color, isReflection, originBoundary=null, maxReflections=10, brightness=1){
     this.pos = {x: x, y: y};
     this.dir = {x: Math.cos(angle), y: Math.sin(angle)};
     this.color = color;
     this.isReflection = isReflection;
     this.hasReflected = false;
     this.originBoundary = originBoundary;
+    this.maxReflections = maxReflections;
+    this.brightness = brightness;
   }
 
   // Method to draw rays
@@ -57,7 +59,10 @@ class Lazer {
     ctx.beginPath();
     ctx.moveTo(this.pos.x, this.pos.y);
     ctx.lineTo(this.pos.x + this.dir.x * 5, this.pos.y + this.dir.y * 5);
-    ctx.strokeStyle = this.color;
+    const r = this.color.split(',')[0].split('(')[1];
+    const g = this.color.split(',')[1];
+    const b = this.color.split(',')[2].split(')')[0];
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${this.brightness})`
     ctx.stroke();
 
     this.update(this.pos.x + this.dir.x * 10, this.pos.y + this.dir.y * 10);
@@ -114,7 +119,7 @@ class Lazer {
   }
 }
 
-lazers.push(new Lazer(100, 100, Math.PI / 6, 'rgb(255, 0, 0)', false));
+lazers.push(new Lazer(100, 100, Math.PI / 6, lazerColor, false, 1));
 
 function castLazer(){
   for (let lazer of lazers){
@@ -136,7 +141,7 @@ function castLazer(){
 
     if (closest) {
       // If the boundary's alpha is 1, create a new lazer with the reflection vector and add it to the lazers array
-      if (closestBoundary.alpha === 1 && !lazer.hasReflected) {
+      if (closestBoundary.alpha === 1 && !lazer.hasReflected && lazer.maxReflections > 0) {
         lazer.hasReflected = true;
         // Calculate the normal vector
         const normal = {
@@ -158,18 +163,36 @@ function castLazer(){
           y: lazer.dir.y - 2 * dot * normal.y
         };
 
-        const newLazer = new Lazer(closest.x, closest.y, Math.atan2(reflection.y, reflection.x), lazer.color, true, closestBoundary);
+        const newLazer = new Lazer(closest.x, closest.y, Math.atan2(reflection.y, reflection.x), lazer.color, true, closestBoundary, lazer.maxReflections - 1, Math.max(lazer.brightness - 0.07, 0.1).toFixed(1));
         lazers.push(newLazer);
       }
 
       ctx.beginPath();
       ctx.moveTo(lazer.pos.x, lazer.pos.y);
       ctx.lineTo(closest.x, closest.y);
-      ctx.strokeStyle = lazer.color;
+      const r = lazer.color.split(',')[0].split('(')[1];
+      const g = lazer.color.split(',')[1];
+      const b = lazer.color.split(',')[2].split(')')[0];
+      ctx.strokeStyle = ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${lazer.brightness})`;
       ctx.stroke();
     }
   }
 }
+
+window.addEventListener('mousemove', (e) => {
+  // Iterate through lazers array
+  for (let i = lazers.length - 1; i >= 0; i--) {
+    if (lazers[i].isReflection) {
+      // Remove reflected lazers from array
+      lazers.splice(i, 1);
+    } else if (i === 0) {
+      // For the lazer being moved
+      lazers[i].update(e.clientX, e.clientY);
+      lazers[i].hasReflected = false; // Reset hasReflected
+    }
+  }
+});
+
 
 // Function to continuously draw on canvas
 function draw() {
