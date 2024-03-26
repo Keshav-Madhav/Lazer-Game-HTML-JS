@@ -35,16 +35,21 @@ class Boundaries {
   }
 }
 // Place boundaries around the canvas
-boundaries.push(new Boundaries(0, 0, canvas.width, 0, boundaryColor));
+boundaries.push(new Boundaries(0, 0, canvas.width, 0, boundaryColor,1));
 boundaries.push(new Boundaries(canvas.width, 0, canvas.width, canvas.height, boundaryColor));
 boundaries.push(new Boundaries(canvas.width, canvas.height, 0, canvas.height, boundaryColor, 1));
-boundaries.push(new Boundaries(0, canvas.height, 0, 0, boundaryColor));
+boundaries.push(new Boundaries(0, canvas.height, 0, 0, boundaryColor, 1));
+
+boundaries.push(new Boundaries(canvas.width / 2, canvas.height / 4, canvas.width / 4, canvas.height / 2, boundaryColor, 1));  
 
 class Lazer {
-  constructor(x, y, angle, color){
+  constructor(x, y, angle, color, isReflection, originBoundary=null){
     this.pos = {x: x, y: y};
     this.dir = {x: Math.cos(angle), y: Math.sin(angle)};
     this.color = color;
+    this.isReflection = isReflection;
+    this.hasReflected = false;
+    this.originBoundary = originBoundary;
   }
 
   // Method to draw rays
@@ -70,6 +75,9 @@ class Lazer {
 
   // Method to cast ray and detect intersections with boundaries
   cast(bound){
+    if (this.isReflection && bound === this.originBoundary){
+      return;
+    }
     const x1 = bound.a.x;
     const y1 = bound.a.y;
 
@@ -106,12 +114,13 @@ class Lazer {
   }
 }
 
-lazers.push(new Lazer(100, 100, Math.PI / 4, 'rgb(255, 0, 0)'));
+lazers.push(new Lazer(100, 100, Math.PI / 6, 'rgb(255, 0, 0)', false));
 
 function castLazer(){
   for (let lazer of lazers){
     let closest = null;
     let record = Infinity;
+    let closestBoundary = null;
 
     for (let boundary of boundaries) {
       const point = lazer.cast(boundary);
@@ -120,11 +129,39 @@ function castLazer(){
         if (distance < record) {
           record = distance;
           closest = point;
+          closestBoundary = boundary;
         }
       }
     }
 
     if (closest) {
+      // If the boundary's alpha is 1, create a new lazer with the reflection vector and add it to the lazers array
+      if (closestBoundary.alpha === 1 && !lazer.hasReflected) {
+        lazer.hasReflected = true;
+        // Calculate the normal vector
+        const normal = {
+          x: closestBoundary.a.y - closestBoundary.b.y,
+          y: closestBoundary.b.x - closestBoundary.a.x
+        };
+
+        // Normalize the normal vector
+        const normalLength = Math.sqrt(normal.x * normal.x + normal.y * normal.y);
+        normal.x /= normalLength;
+        normal.y /= normalLength;
+
+        // Calculate the dot product of the direction and normal vectors
+        const dot = lazer.dir.x * normal.x + lazer.dir.y * normal.y;
+
+        // Calculate the reflection vector
+        const reflection = {
+          x: lazer.dir.x - 2 * dot * normal.x,
+          y: lazer.dir.y - 2 * dot * normal.y
+        };
+
+        const newLazer = new Lazer(closest.x, closest.y, Math.atan2(reflection.y, reflection.x), lazer.color, true, closestBoundary);
+        lazers.push(newLazer);
+      }
+
       ctx.beginPath();
       ctx.moveTo(lazer.pos.x, lazer.pos.y);
       ctx.lineTo(closest.x, closest.y);
