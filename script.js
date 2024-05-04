@@ -59,7 +59,7 @@ window.addEventListener('mousedown', (e) => {
     lazerR = Math.floor(Math.random() * 256);
     lazerG = Math.floor(Math.random() * 256);
     lazerB = Math.floor(Math.random() * 256);
-    const newLazer = new Lazer(e.clientX, e.clientY, 0, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, 500);
+    const newLazer = new Lazer(e.clientX, e.clientY, 0, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, 50);
     lazers.push(newLazer);
     selectedLazer = lazers.length - 1;
     lastActionStack.push({type: 'add', lazer: newLazer});
@@ -131,70 +131,17 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
-    const lastAction = lastActionStack.pop();
-    if (lastAction ) undoStack.push(lastAction);
-    if (lastAction.type === 'add') {
-      if (lastAction.mirror) {
-        mirrors.pop();
-        for(let i = 0; i < lazers.length; i++){
-          resetRays(e, i);
-        }
-      } else if (lastAction.lazer) {
-        const index = lazers.indexOf(lastAction.lazer);
-        if (index !== -1) {
-          removeLazer(index);
-        }
-      }
-    } else if (lastAction.type === 'delete') {
-      if (lastAction.lazer) {
-        lazers.push(lastAction.lazer);
-        resetRays(e, lazers.length - 1);
-      }
-    } else if (lastAction.type === 'reset') {
-      mirrors = preResetState.mirrors;
-      lazers = preResetState.lazers;
-    }
+    undoFunction();
   }
 
   if (e.key === 'y' && (e.ctrlKey || e.metaKey)) {
-    const lastAction = undoStack.pop();
-    if (lastAction ) lastActionStack.push(lastAction);
-    if (lastAction.type === 'add') {
-      if (lastAction.mirror) {
-        mirrors.push(lastAction.mirror);
-        for(let i = 0; i < lazers.length; i++){
-          resetRays(e, i);
-        }
-      } else if (lastAction.lazer) {
-        lazers.push(lastAction.lazer);
-        resetRays(e, lazers.length - 1);
-      }
-    } else if (lastAction.type === 'delete') {
-      if (lastAction.lazer) {
-        const index = lazers.indexOf(lastAction.lazer);
-        if (index !== -1) {
-          removeLazer(index);
-        }
-      }
-    } else if (lastAction.type === 'reset') {
-      mirrors = [];
-      lazers = [];
-    }
+    redoFunction();
   }
 });
 
 
 /// Functions
 
-function removeLazer(lazer){
-  for (let i = lazers.length - 1; i >= 0; i--) {
-    if (lazers[i].isReflection && lazers[i].reflectedBy === lazers[lazer]) {
-      lazers.splice(i, 1);
-    } else if (i === lazer) {
-      lazers.splice(i, 1);
-    }
-  }
-}
 
 function castLazer(){
   for (let lazer of lazers){
@@ -263,6 +210,68 @@ function resetRays(e, resetLazer, isselected){
       if(isselected) lazers[i].update(e.clientX, e.clientY);
       lazers[i].hasReflected = false;
     }
+  }
+}
+
+function removeLazer(lazer){
+  for (let i = lazers.length - 1; i >= 0; i--) {
+    if (lazers[i].isReflection && lazers[i].reflectedBy === lazers[lazer]) {
+      lazers.splice(i, 1);
+    } else if (i === lazer) {
+      lazers.splice(i, 1);
+    }
+  }
+}
+
+function undoFunction(){
+  const lastAction = lastActionStack.pop();
+  if (lastAction ) undoStack.push(lastAction);
+  if (lastAction.type === 'add') {
+    if (lastAction.mirror) {
+      mirrors.pop();
+      for(let i = 0; i < lazers.length; i++){
+        resetRays(e, i);
+      }
+    } else if (lastAction.lazer) {
+      const index = lazers.indexOf(lastAction.lazer);
+      if (index !== -1) {
+        removeLazer(index);
+      }
+    }
+  } else if (lastAction.type === 'delete') {
+    if (lastAction.lazer) {
+      lazers.push(lastAction.lazer);
+      resetRays(e, lazers.length - 1);
+    }
+  } else if (lastAction.type === 'reset') {
+    mirrors = preResetState.mirrors;
+    lazers = preResetState.lazers;
+  }
+}
+
+function redoFunction(){
+  const lastAction = undoStack.pop();
+  if (lastAction ) lastActionStack.push(lastAction);
+  if (lastAction.type === 'add') {
+    if (lastAction.mirror) {
+      mirrors.push(lastAction.mirror);
+      for(let i = 0; i < lazers.length; i++){
+        resetRays(e, i);
+      }
+    } else if (lastAction.lazer) {
+      lazers.push(lastAction.lazer);
+      resetRays(e, lazers.length - 1);
+    }
+  } else if (lastAction.type === 'delete') {
+    if (lastAction.lazer) {
+      const index = lazers.indexOf(lastAction.lazer);
+      if (index !== -1) {
+        removeLazer(index);
+      }
+    }
+  } else if (lastAction.type === 'reset') {
+    mirrors = [];
+    lazers = [];
   }
 }
 
