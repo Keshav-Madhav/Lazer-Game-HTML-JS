@@ -17,6 +17,12 @@ const desiredFPS = 120;
 let mirrors = [];
 let lazers = [];
 
+// Object to store the position of the mouse
+let mouse = { x: 0, y: 0 };
+
+// temporary mirror for preview
+let tempMirror = null;
+
 // Colors for mirrors and rays
 let mirrorColor = 'rgb(255, 255, 255)';
 let lazerR = 255;
@@ -44,12 +50,15 @@ lazers.push(new Lazer(100, 100, Math.PI / 6, `rgb(${lazerR}, ${lazerG}, ${lazerB
 window.addEventListener('mousedown', (e) => {
   let lazerClicked = false;
 
-  if (e.ctrlKey || e.metaKey) {
+  if (e.button === 0 && (e.ctrlKey || e.metaKey)) {
     lazerR = Math.floor(Math.random() * 256);
     lazerG = Math.floor(Math.random() * 256);
     lazerB = Math.floor(Math.random() * 256);
     lazers.push(new Lazer(e.clientX, e.clientY, 0, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, 50));
     selectedLazer = lazers.length - 1;
+  } else if (e.button === 2) {
+    mouse.x = {x: e.clientX, y: e.clientY};
+    tempMirror = new Mirrors(mouse.x.x, mouse.x.y, e.clientX, e.clientY, mirrorColor, 1);
   } else {
     for(let i = 0; i < lazers.length; i++){
       if(e.clientX > lazers[i].pos.x - 5 && e.clientX < lazers[i].pos.x + 5 && e.clientY > lazers[i].pos.y - 5 && e.clientY < lazers[i].pos.y + 5){
@@ -65,8 +74,28 @@ window.addEventListener('mousedown', (e) => {
   }
 });
 
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 2 && tempMirror) {
+    if(e.ctrlKey || e.metaKey){ tempMirror.alpha = 0}
+    mirrors.push(new Mirrors(tempMirror.a.x, tempMirror.a.y, tempMirror.b.x, tempMirror.b.y, mirrorColor, tempMirror.alpha));
+    tempMirror = null;
+    for(let i = 0; i < lazers.length; i++){
+      resetRays(e, i);
+    }
+  }
+});
+
+window.addEventListener('contextmenu', (e) => {e.preventDefault()}, {passive: false});
+
 window.addEventListener('mousemove', (e) => {
-  resetRays(e);
+  if (tempMirror) {
+    selectedLazer = -1;
+    tempMirror.b.x = e.clientX;
+    tempMirror.b.y = e.clientY;
+  }
+  else {
+    resetRays(e, selectedLazer, true);
+  }
 });
 
 window.addEventListener('keydown', (e) => {
@@ -79,6 +108,20 @@ window.addEventListener('keydown', (e) => {
       }
     }
     selectedLazer = -1;
+  }
+
+  if (e.key === 'Escape' && tempMirror) {
+    tempMirror = null;
+  }
+
+  if (e.key === 'r') {
+    mirrors = [];
+    mirrors.push(new Mirrors(0, 0, canvas.width, 0, mirrorColor,1));
+    mirrors.push(new Mirrors(canvas.width, 0, canvas.width, canvas.height, mirrorColor,1));
+    mirrors.push(new Mirrors(canvas.width, canvas.height, 0, canvas.height, mirrorColor, 1));
+    mirrors.push(new Mirrors(0, canvas.height, 0, 0, mirrorColor,1));
+
+    lazers = [];
   }
 });
 
@@ -145,12 +188,12 @@ function castLazer(){
   }
 }
 
-function resetRays(e){
+function resetRays(e, resetLazer, isselected){
   for (let i = lazers.length - 1; i >= 0; i--) {
-    if (lazers[i].isReflection && lazers[i].reflectedBy === lazers[selectedLazer]) {
+    if (lazers[i].isReflection && lazers[i].reflectedBy === lazers[resetLazer]) {
       lazers.splice(i, 1);
-    } else if (i === selectedLazer) {
-      lazers[i].update(e.clientX, e.clientY);
+    } else if (i === resetLazer) {
+      if(isselected) lazers[i].update(e.clientX, e.clientY);
       lazers[i].hasReflected = false;
     }
   }
@@ -170,6 +213,10 @@ function draw() {
     if(!lazer.isReflection){
       lazer.draw();
     }
+  }
+
+  if (tempMirror) {
+    tempMirror.draw();
   }
 
   castLazer();
