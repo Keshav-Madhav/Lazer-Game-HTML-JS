@@ -26,6 +26,7 @@ let tempMirror = null;
 // Array to store the last action and the object that was affected
 let lastActionStack = [];
 let preResetState = {mirrors: mirrors, lazers: lazers};
+let undoStack = [];
 
 // Colors for mirrors and rays
 let mirrorColor = 'rgb(255, 255, 255)';
@@ -131,6 +132,7 @@ window.addEventListener('keydown', (e) => {
 
   if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
     const lastAction = lastActionStack.pop();
+    if (lastAction ) undoStack.push(lastAction);
     if (lastAction.type === 'add') {
       if (lastAction.mirror) {
         mirrors.pop();
@@ -151,6 +153,32 @@ window.addEventListener('keydown', (e) => {
     } else if (lastAction.type === 'reset') {
       mirrors = preResetState.mirrors;
       lazers = preResetState.lazers;
+    }
+  }
+
+  if (e.key === 'y' && (e.ctrlKey || e.metaKey)) {
+    const lastAction = undoStack.pop();
+    if (lastAction ) lastActionStack.push(lastAction);
+    if (lastAction.type === 'add') {
+      if (lastAction.mirror) {
+        mirrors.push(lastAction.mirror);
+        for(let i = 0; i < lazers.length; i++){
+          resetRays(e, i);
+        }
+      } else if (lastAction.lazer) {
+        lazers.push(lastAction.lazer);
+        resetRays(e, lazers.length - 1);
+      }
+    } else if (lastAction.type === 'delete') {
+      if (lastAction.lazer) {
+        const index = lazers.indexOf(lastAction.lazer);
+        if (index !== -1) {
+          removeLazer(index);
+        }
+      }
+    } else if (lastAction.type === 'reset') {
+      mirrors = [];
+      lazers = [];
     }
   }
 });
