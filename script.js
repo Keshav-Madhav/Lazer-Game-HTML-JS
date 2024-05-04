@@ -23,6 +23,10 @@ let mouse = { x: 0, y: 0 };
 // temporary mirror for preview
 let tempMirror = null;
 
+// Array to store the last action and the object that was affected
+let lastActionStack = [];
+let preResetState = {mirrors: mirrors, lazers: lazers};
+
 // Colors for mirrors and rays
 let mirrorColor = 'rgb(255, 255, 255)';
 let lazerR = 255;
@@ -40,7 +44,7 @@ mirrors.push(new Mirrors(0, canvas.height, 0, 0, mirrorColor,1));
 
 mirrors.push(new Mirrors(canvas.width / 2, canvas.height / 4, canvas.width / 4, canvas.height / 2, mirrorColor, 0));  
 
-lazers.push(new Lazer(100, 100, Math.PI / 6, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, 10));
+lazers.push(new Lazer(100, 100, Math.PI / 3, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, 10));
 
 
 
@@ -54,9 +58,12 @@ window.addEventListener('mousedown', (e) => {
     lazerR = Math.floor(Math.random() * 256);
     lazerG = Math.floor(Math.random() * 256);
     lazerB = Math.floor(Math.random() * 256);
-    lazers.push(new Lazer(e.clientX, e.clientY, 0, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, 50));
+    const newLazer = new Lazer(e.clientX, e.clientY, 0, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, 500);
+    lazers.push(newLazer);
     selectedLazer = lazers.length - 1;
-  } else if (e.button === 2) {
+    lastActionStack.push({type: 'add', lazer: newLazer});
+  }
+  else if (e.button === 2) {
     mouse.x = {x: e.clientX, y: e.clientY};
     tempMirror = new Mirrors(mouse.x.x, mouse.x.y, e.clientX, e.clientY, mirrorColor, 1);
   } else {
@@ -82,6 +89,7 @@ window.addEventListener('mouseup', (e) => {
     for(let i = 0; i < lazers.length; i++){
       resetRays(e, i);
     }
+    lastActionStack.push({type: 'add', mirror: mirrors[mirrors.length - 1]});
   }
 });
 
@@ -100,13 +108,8 @@ window.addEventListener('mousemove', (e) => {
 
 window.addEventListener('keydown', (e) => {
   if (selectedLazer !== -1 && e.key === 'Delete') {
-    for (let i = lazers.length - 1; i >= 0; i--) {
-      if (lazers[i].isReflection && lazers[i].reflectedBy === lazers[selectedLazer]) {
-        lazers.splice(i, 1);
-      } else if (i === selectedLazer) {
-        lazers.splice(i, 1);
-      }
-    }
+    lastActionStack.push({type: 'delete', lazer: lazers[selectedLazer]});
+    removeLazer(selectedLazer);
     selectedLazer = -1;
   }
 
@@ -115,6 +118,8 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (e.key === 'r') {
+    preResetState = {mirrors: mirrors, lazers: lazers};
+    lastActionStack.push({type: 'reset'});
     mirrors = [];
     mirrors.push(new Mirrors(0, 0, canvas.width, 0, mirrorColor,1));
     mirrors.push(new Mirrors(canvas.width, 0, canvas.width, canvas.height, mirrorColor,1));
@@ -123,11 +128,45 @@ window.addEventListener('keydown', (e) => {
 
     lazers = [];
   }
+
+  if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+    const lastAction = lastActionStack.pop();
+    if (lastAction.type === 'add') {
+      if (lastAction.mirror) {
+        mirrors.pop();
+        for(let i = 0; i < lazers.length; i++){
+          resetRays(e, i);
+        }
+      } else if (lastAction.lazer) {
+        const index = lazers.indexOf(lastAction.lazer);
+        if (index !== -1) {
+          removeLazer(index);
+        }
+      }
+    } else if (lastAction.type === 'delete') {
+      if (lastAction.lazer) {
+        lazers.push(lastAction.lazer);
+        resetRays(e, lazers.length - 1);
+      }
+    } else if (lastAction.type === 'reset') {
+      mirrors = preResetState.mirrors;
+      lazers = preResetState.lazers;
+    }
+  }
 });
 
 
 /// Functions
 
+function removeLazer(lazer){
+  for (let i = lazers.length - 1; i >= 0; i--) {
+    if (lazers[i].isReflection && lazers[i].reflectedBy === lazers[lazer]) {
+      lazers.splice(i, 1);
+    } else if (i === lazer) {
+      lazers.splice(i, 1);
+    }
+  }
+}
 
 function castLazer(){
   for (let lazer of lazers){
