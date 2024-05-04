@@ -10,13 +10,18 @@ function resizeCanvas() {
 }
 resizeCanvas();
 
+// desiredFPS for the game loop
+const desiredFPS = 120;
+
 // Arrays to store mirrors, rays, and light sources
 let mirrors = [];
 let lazers = [];
 
 // Colors for mirrors and rays
 let mirrorColor = 'rgb(255, 255, 255)';
-let lazerColor = 'rgb(255, 0, 0)';
+let lazerR = 255;
+let lazerG = 0;
+let lazerB = 0;
 
 // Variable to store the selected ray
 let selectedLazer = -1;
@@ -29,10 +34,7 @@ mirrors.push(new Mirrors(0, canvas.height, 0, 0, mirrorColor,1));
 
 mirrors.push(new Mirrors(canvas.width / 2, canvas.height / 4, canvas.width / 4, canvas.height / 2, mirrorColor, 1));  
 
-lazers.push(new Lazer(100, 100, Math.PI / 6, lazerColor, false, null, 10));
-// lazers.push(new Lazer(canvas.width - 100, 100, Math.PI / 3, 'rgb(0,255,0)', false, null, 3));
-// lazers.push(new Lazer(100, canvas.height - 100, Math.PI / 6, 'rgb(0,0,255)', false, 1));
-// lazers.push(new Lazer(canvas.width - 100, canvas.height - 100, Math.PI / 14, 'rgb(255,255,0)', false, 1));
+lazers.push(new Lazer(100, 100, Math.PI / 6, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, 10));
 
 function castLazer(){
   for (let lazer of lazers){
@@ -92,21 +94,29 @@ function castLazer(){
   }
 }
 
-window.addEventListener('click', (e) => {
+window.addEventListener('mousedown', (e) => {
   let lazerClicked = false;
-  for(let i = 0; i < lazers.length; i++){
-    if(e.clientX > lazers[i].pos.x - 5 && e.clientX < lazers[i].pos.x + 5 && e.clientY > lazers[i].pos.y - 5 && e.clientY < lazers[i].pos.y + 5){
-      selectedLazer = i;
-      lazerClicked = true;
-      break; // Exit loop since a lazer is clicked
+
+  if (e.ctrlKey || e.metaKey) {
+    lazerR = Math.floor(Math.random() * 256);
+    lazerG = Math.floor(Math.random() * 256);
+    lazerB = Math.floor(Math.random() * 256);
+    lazers.push(new Lazer(e.clientX, e.clientY, 0, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, 50));
+    selectedLazer = lazers.length - 1;
+  } else {
+    for(let i = 0; i < lazers.length; i++){
+      if(e.clientX > lazers[i].pos.x - 5 && e.clientX < lazers[i].pos.x + 5 && e.clientY > lazers[i].pos.y - 5 && e.clientY < lazers[i].pos.y + 5){
+        selectedLazer = i;
+        lazerClicked = true;
+        break;
+      }
+    }
+    
+    if (!lazerClicked) {
+      selectedLazer = -1;
     }
   }
-  
-  if (!lazerClicked) {
-    selectedLazer = -1; // Set selectedLazer to -1 if no lazer is clicked
-  }
 });
-
 
 window.addEventListener('mousemove', (e) => {
   resetRays(e);
@@ -125,6 +135,8 @@ function resetRays(e){
 
 // Function to continuously draw on canvas
 function draw() {
+  const deltaTime = getDeltaTime();
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (let mirror of mirrors){
@@ -140,8 +152,6 @@ function draw() {
   castLazer();
 
   drawFPS(ctx);
-  
-  requestAnimationFrame(draw);
 }
 
-draw();
+createConstantFPSGameLoop(desiredFPS, draw);
