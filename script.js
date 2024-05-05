@@ -22,6 +22,7 @@ let mouse = { x: 0, y: 0 };
 
 // temporary mirror for preview
 let tempMirror = null;
+let isDrawing = false;
 
 // Array to store the last action and the object that was affected
 let lastActionStack = [];
@@ -63,10 +64,13 @@ window.addEventListener('mousedown', (e) => {
     lazers.push(newLazer);
     selectedLazer = lazers.length - 1;
     lastActionStack.push({type: 'add', lazer: newLazer});
-  }
-  else if (e.button === 2) {
-    mouse.x = {x: e.clientX, y: e.clientY};
-    tempMirror = new Mirrors(mouse.x.x, mouse.x.y, e.clientX, e.clientY, mirrorColor, 1);
+  } else if (e.button === 2 && e.shiftKey) {
+    lastActionStack.push({type: 'add', curvedMirror: []});
+    isDrawing = true;
+    mouse = { x: e.clientX, y: e.clientY };
+  } else if (e.button === 2) {
+    mouse = {x: e.clientX, y: e.clientY};
+    tempMirror = new Mirrors(mouse.x, mouse.y, e.clientX, e.clientY, mirrorColor, 1);
   } else {
     for(let i = 0; i < lazers.length; i++){
       if(e.clientX > lazers[i].pos.x - 5 && e.clientX < lazers[i].pos.x + 5 && e.clientY > lazers[i].pos.y - 5 && e.clientY < lazers[i].pos.y + 5){
@@ -83,7 +87,9 @@ window.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mouseup', (e) => {
-  if (e.button === 2 && tempMirror) {
+  if (e.button === 2 && e.shiftKey) {
+    isDrawing = false;
+  } else if (e.button === 2 && tempMirror) {
     if(e.ctrlKey || e.metaKey){ tempMirror.alpha = 0}
     mirrors.push(new Mirrors(tempMirror.a.x, tempMirror.a.y, tempMirror.b.x, tempMirror.b.y, mirrorColor, tempMirror.alpha));
     tempMirror = null;
@@ -97,7 +103,15 @@ window.addEventListener('mouseup', (e) => {
 window.addEventListener('contextmenu', (e) => {e.preventDefault()}, {passive: false});
 
 window.addEventListener('mousemove', (e) => {
-  if (tempMirror) {
+  if (isDrawing) {
+    const currentPoint = { x: e.clientX, y: e.clientY };
+    mirrors.push(new Mirrors(mouse.x, mouse.y, currentPoint.x, currentPoint.y, mirrorColor, 1));
+    lastActionStack[lastActionStack.length - 1].curvedMirror.push(mirrors[mirrors.length - 1]);
+    mouse = currentPoint;
+    for(let i = 0; i < lazers.length; i++){
+      resetRays(e, i);
+    }
+  } else if (tempMirror) {
     selectedLazer = -1;
     tempMirror.b.x = e.clientX;
     tempMirror.b.y = e.clientY;
@@ -131,11 +145,11 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
-    undoFunction();
+    undoFunction(e);
   }
 
   if (e.key === 'y' && (e.ctrlKey || e.metaKey)) {
-    redoFunction();
+    redoFunction(e);
   }
 });
 
@@ -223,7 +237,7 @@ function removeLazer(lazer){
   }
 }
 
-function undoFunction(){
+function undoFunction(e){
   const lastAction = lastActionStack.pop();
   if (lastAction ) undoStack.push(lastAction);
   if (lastAction.type === 'add') {
@@ -237,6 +251,13 @@ function undoFunction(){
       if (index !== -1) {
         removeLazer(index);
       }
+    } else if (lastAction.curvedMirror) {
+      for (let mirror of lastAction.curvedMirror) {
+        mirrors.pop();
+      }
+      for(let i = 0; i < lazers.length; i++){
+        resetRays(e, i);
+      }
     }
   } else if (lastAction.type === 'delete') {
     if (lastAction.lazer) {
@@ -249,7 +270,7 @@ function undoFunction(){
   }
 }
 
-function redoFunction(){
+function redoFunction(e){
   const lastAction = undoStack.pop();
   if (lastAction ) lastActionStack.push(lastAction);
   if (lastAction.type === 'add') {
@@ -261,6 +282,13 @@ function redoFunction(){
     } else if (lastAction.lazer) {
       lazers.push(lastAction.lazer);
       resetRays(e, lazers.length - 1);
+    } else if (lastAction.curvedMirror) {
+      for (let mirror of lastAction.curvedMirror) {
+        mirrors.push(mirror);
+      }
+      for(let i = 0; i < lazers.length; i++){
+        resetRays(e, i);
+      }
     }
   } else if (lastAction.type === 'delete') {
     if (lastAction.lazer) {
@@ -271,6 +299,10 @@ function redoFunction(){
     }
   } else if (lastAction.type === 'reset') {
     mirrors = [];
+    mirrors.push(new Mirrors(0, 0, canvas.width, 0, mirrorColor,1));
+    mirrors.push(new Mirrors(canvas.width, 0, canvas.width, canvas.height, mirrorColor,1));
+    mirrors.push(new Mirrors(canvas.width, canvas.height, 0, canvas.height, mirrorColor, 1));
+    mirrors.push(new Mirrors(0, canvas.height, 0, 0, mirrorColor,1));
     lazers = [];
   }
 }
