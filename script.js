@@ -2,6 +2,9 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
+// Get input field for lazer strength
+const lazerStrength = document.getElementById('lazerStrength');
+
 // Resize the canvas to fit the window
 window.addEventListener('resize', resizeCanvas);
 function resizeCanvas() {
@@ -34,6 +37,8 @@ let mirrorColor = 'rgb(255, 255, 255)';
 let lazerR = 255;
 let lazerG = 0;
 let lazerB = 0;
+let customLazer = false;
+let customLazerStrength = 10;
 
 // Variable to store the selected ray
 let selectedLazer = -1;
@@ -64,6 +69,15 @@ window.addEventListener('mousedown', (e) => {
     lazers.push(newLazer);
     selectedLazer = lazers.length - 1;
     lastActionStack.push({type: 'add', lazer: newLazer});
+  } else if (e.button === 0 && e.shiftKey) {
+    lazerR = Math.floor(Math.random() * 256);
+    lazerG = Math.floor(Math.random() * 256);
+    lazerB = Math.floor(Math.random() * 256);
+    lazerStrength.style.display = 'block';
+    lazerStrength.style.left = `${e.clientX}px`;
+    lazerStrength.style.top = `${e.clientY}px`;
+    lazerStrength.focus();
+    customLazer = true;
   } else if (e.button === 2 && e.shiftKey) {
     lastActionStack.push({type: 'add', curvedMirror: []});
     isDrawing = true;
@@ -86,24 +100,12 @@ window.addEventListener('mousedown', (e) => {
   }
 });
 
-window.addEventListener('mouseup', (e) => {
-  if (e.button === 2 && e.shiftKey) {
-    isDrawing = false;
-  } else if (e.button === 2 && tempMirror) {
-    if(e.ctrlKey || e.metaKey){ tempMirror.alpha = 0}
-    mirrors.push(new Mirrors(tempMirror.a.x, tempMirror.a.y, tempMirror.b.x, tempMirror.b.y, mirrorColor, tempMirror.alpha));
-    tempMirror = null;
-    for(let i = 0; i < lazers.length; i++){
-      resetRays(e, i);
-    }
-    lastActionStack.push({type: 'add', mirror: mirrors[mirrors.length - 1]});
-  }
-});
-
-window.addEventListener('contextmenu', (e) => {e.preventDefault()}, {passive: false});
-
 window.addEventListener('mousemove', (e) => {
-  if (isDrawing) {
+  if (customLazer) {
+    lazerStrength.style.left = `${e.clientX}px`;
+    lazerStrength.style.top = `${e.clientY}px`;
+    mouse = { x: e.clientX, y: e.clientY };
+  } else if (isDrawing) {
     const currentPoint = { x: e.clientX, y: e.clientY };
     mirrors.push(new Mirrors(mouse.x, mouse.y, currentPoint.x, currentPoint.y, mirrorColor, 1));
     lastActionStack[lastActionStack.length - 1].curvedMirror.push(mirrors[mirrors.length - 1]);
@@ -121,7 +123,34 @@ window.addEventListener('mousemove', (e) => {
   }
 });
 
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 2 && e.shiftKey) {
+    isDrawing = false;
+  } else if (e.button === 2 && tempMirror) {
+    if(e.ctrlKey || e.metaKey){ tempMirror.alpha = 0}
+    mirrors.push(new Mirrors(tempMirror.a.x, tempMirror.a.y, tempMirror.b.x, tempMirror.b.y, mirrorColor, tempMirror.alpha));
+    tempMirror = null;
+    for(let i = 0; i < lazers.length; i++){
+      resetRays(e, i);
+    }
+    lastActionStack.push({type: 'add', mirror: mirrors[mirrors.length - 1]});
+  }
+});
+
+window.addEventListener('contextmenu', (e) => {e.preventDefault()}, {passive: false});
+
+
 window.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && customLazer){
+    customLazer = false;
+    lazerStrength.style.display = 'none';
+    customLazerStrength = parseInt(lazerStrength.value);
+    const newLazer = new Lazer(mouse.x, mouse.y, 0, `rgb(${lazerR}, ${lazerG}, ${lazerB})`, false, null, customLazerStrength);
+    lazers.push(newLazer);
+    selectedLazer = lazers.length - 1;
+    lastActionStack.push({type: 'add', lazer: newLazer});
+  }
+
   if (selectedLazer !== -1 && e.key === 'Delete') {
     lastActionStack.push({type: 'delete', lazer: lazers[selectedLazer]});
     removeLazer(selectedLazer);
